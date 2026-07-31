@@ -1,7 +1,9 @@
 import json
 from openai import OpenAI
+from googlesearch import search as google_search_api
 from ..core.config import settings
 from .milvus_search import search_academic_database
+from .prompt.system_prompt import system_prompt
 
 # Initialize OpenAI client pointing to Groq
 client = OpenAI(
@@ -9,19 +11,19 @@ client = OpenAI(
     api_key=settings.GROQ_API_KEY
 )
 
-# The tool definition for Llama-3-70B
+# The fallback tool definition for Llama-3-70B
 tools = [
     {
         "type": "function",
         "function": {
-            "name": "search_academic_database",
-            "description": "Search the academic database for relevant research papers and context. Call this when you need facts to answer the user's question.",
+            "name": "search_online",
+            "description": "Searches the open internet for an answer. ONLY call this if the Primary Academic Context provided in the prompt does NOT contain the answer to the user's question.",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "query": {
                         "type": "string",
-                        "description": "The semantic search query to find relevant papers."
+                        "description": "The web search query to find the missing information."
                     }
                 },
                 "required": ["query"]
@@ -30,13 +32,44 @@ tools = [
     }
 ]
 
+def execute_web_search(query: str) -> str:
+    """Performs a live Google search and returns text snippets."""
+    print(f"[Fallback] Agent invoked Web Search for: '{query}'")
+    try:
+        results = list(google_search_api(query, advanced=True, num_results=3))
+        formatted = "Web Search Results:\n\n"
+        for r in results:
+            formatted += f"Title: {r.title}\nDescription: {r.description}\nURL: {r.url}\n\n"
+        return formatted if results else "No web results found."
+    except Exception as e:
+        return f"Web search failed: {str(e)}"
+
 def run_agentic_rag(user_prompt: str, max_iterations: int = 3):
     """
-    Runs the Agentic Workflow. The LLM can decide to call the search tool multiple times
-    if it needs better context, before finally answering the user.
+    Runs the Dual-RAG Agentic Workflow. 
+    1. ALWAYS forces Milvus Academic Database search first.
+    2. Gives the LLM the Academic Context.
+    3. If the Academic Context is insufficient, the LLM autonomously calls 'search_online'.
     """
+    
+    # 1. Force Milvus Retrieval First
+    print(f"[Primary RAG] Querying Milvus for: '{user_prompt}'")
+    academic_results = search_academic_database(user_prompt)
+    
+    academic_context = "\n\n=== PRIMARY ACADEMIC CONTEXT ===\n"
+    if not academic_results:
+        academic_context += "No academic papers found in the internal database.\n"
+    else:
+        for i, res in enumerate(academic_results):
+            academic_context += f"[Result {i+1}]\n"
+            academic_context += f"Source: {res['title']} by {res['authors']} ({res['published_year']})\n"
+            academic_context += f"Text: {res['text']}\n\n"
+            
+    # 2. Inject into the LLM Prompt
+    full_system_prompt = system_prompt + academic_context
+    
     messages = [
-        {"role": "system", "content": "You are a brilliant AI Research Assistant. You have access to a semantic search tool to query a massive vector database of academic papers. You must answer the user's questions accurately based on the search results. If the search results aren't helpful, you can call the tool again with a different query. Always cite the Source (Author, Year)."},
+        {"role": "system", "content": full_system_prompt},
         {"role": "user", "content": user_prompt}
     ]
     
@@ -55,30 +88,22 @@ def run_agentic_rag(user_prompt: str, max_iterations: int = 3):
         response_message = response.choices[0].message
         messages.append(response_message)
         
-        # Check if the LLM decided to call a tool
+        # 3. Check if the LLM decided to use the fallback Web Search
         if response_message.tool_calls:
             for tool_call in response_message.tool_calls:
-                if tool_call.function.name == "search_academic_database":
+                if tool_call.function.name == "search_online":
                     args = json.loads(tool_call.function.arguments)
                     search_query = args.get("query")
-                    print(f"Agent invoked search with query: {search_query}")
                     
-                    # Execute the tool
-                    results = search_academic_database(search_query)
+                    # Execute the Web tool
+                    web_results_text = execute_web_search(search_query)
                     
-                    # Format results as a string
-                    formatted_context = "Search Results:\n\n"
-                    for i, res in enumerate(results):
-                        formatted_context += f"Result {i+1}\n"
-                        formatted_context += f"Source: {res['title']} by {res['authors']} ({res['published_year']})\n"
-                        formatted_context += f"Text: {res['text']}\n\n"
-                    
-                    # Pass the results back to the LLM
+                    # Pass the web results back to the LLM
                     messages.append({
                         "role": "tool",
                         "tool_call_id": tool_call.id,
-                        "name": "search_academic_database",
-                        "content": formatted_context
+                        "name": "search_online",
+                        "content": web_results_text
                     })
             
             # After adding tool results, loop again to let the LLM generate the final answer
