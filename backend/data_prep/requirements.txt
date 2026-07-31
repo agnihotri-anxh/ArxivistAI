@@ -1,0 +1,4 @@
+marker-pdf
+PyMuPDF
+pdfplumber
+camelot-py[cv]

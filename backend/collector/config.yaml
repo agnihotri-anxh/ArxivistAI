@@ -1,0 +1,31 @@
+sources:
+  - "cs.AI"
+  - "cs.CL"
+  - "cs.LG"
+  - "cs.IR"
+
+year_start: 2019
+
+keywords:
+  - "LLM"
+  - "RAG"
+  - "Agent"
+  - "Agents"
+  - "Fine-tuning"
+  - "Fine tuning"
+  - "Embeddings"
+  - "VLM"
+  - "Machine Learning"
+  - "AI/ML"
+  - "Deep Learning"
+  - "Neural Network"
+  - "Artificial Intelligence"
+  - "Computer Vision"
+  - "Natural Language Processing"
+  - "Transformers"
+
+paths:
+  metadata: "data/metadata.json"
+  pdfs: "data/pdfs"
+
+max_per_year: 2000
