@@ -78,7 +78,7 @@ def run_agentic_rag(user_prompt: str, max_iterations: int = 3):
         iterations += 1
         
         response = client.chat.completions.create(
-            model="llama3-70b-8192",
+            model="llama-3.3-70b-versatile",
             messages=messages,
             tools=tools,
             tool_choice="auto",
