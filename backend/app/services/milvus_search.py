@@ -1,5 +1,6 @@
 import sys
 from pathlib import Path
+from typing import List, Dict
 from pymilvus import AnnSearchRequest, RRFRanker
 from ..core.config import settings
 
@@ -7,8 +8,8 @@ from ..core.config import settings
 BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
 sys.path.append(str(BASE_DIR))
 
-from vector_db.connection import get_milvus_client, get_embedding_function
-from vector_db.config import COLLECTION_NAME
+from backend.vector_db.connection import get_milvus_client, get_embedding_function
+from backend.vector_db.config import COLLECTION_NAME
 
 # Initialize connections lazily or globally
 client = None
@@ -21,7 +22,33 @@ def init_milvus():
     if bge_m3_ef is None:
         bge_m3_ef = get_embedding_function()
 
-def search_academic_database(query: str, limit: int = 5):
+def get_all_papers(limit: int = 500) -> List[Dict]:
+    """Fetches a list of unique papers from the database."""
+    client = get_milvus_client()
+    
+    # By filtering for chunk_index == 0, we get exactly one record per paper
+    res = client.query(
+        collection_name=COLLECTION_NAME,
+        filter="chunk_index == 0",
+        output_fields=["paper_id", "title", "authors", "published_year", "categories", "text"],
+        limit=limit
+    )
+    
+    papers = []
+    for r in res:
+        papers.append({
+            "id": r.get("paper_id", ""),
+            "title": r.get("title", ""),
+            "authors": [a.strip() for a in r.get("authors", "").split(",")],
+            "category": r.get("categories", "").split(",")[0] if r.get("categories") else "Research",
+            "year": str(r.get("published_year", "")),
+            "abstract": r.get("text", "")[:300] + "...",
+            "tags": [],
+            "venue": "ArXiv"
+        })
+    return papers
+
+def search_academic_database(query: str, limit: int = 5) -> List[Dict]:
     """Performs a hybrid search on Zilliz Cloud."""
     init_milvus()
     

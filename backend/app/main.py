@@ -1,7 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
 from .core.config import settings
-from .api import routes
+from .api import routes, auth
+# Initialize app
+
 
 app = FastAPI(title=settings.API_TITLE)
 
@@ -14,7 +18,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 app.include_router(routes.router, prefix="/api")
+
+# Serve PDFs
+pdfs_path = Path(__file__).resolve().parent.parent.parent / "data" / "pdfs"
+app.mount("/api/pdfs", StaticFiles(directory=str(pdfs_path)), name="pdfs")
 
 @app.get("/")
 def root():
