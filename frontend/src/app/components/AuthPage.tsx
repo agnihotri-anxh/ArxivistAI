@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
-import { User, Mail, Lock, Sparkles } from 'lucide-react';
+import { User, Mail, Lock, Sparkles, ArrowLeft, X } from 'lucide-react';
 
 interface AuthPageProps {
   initialMode: 'login' | 'signup';
   onLoginSuccess: (token: string) => void;
+  onBackToHome?: () => void;
 }
 
-export function AuthPage({ initialMode, onLoginSuccess }: AuthPageProps) {
+export function AuthPage({ initialMode, onLoginSuccess, onBackToHome }: AuthPageProps) {
   const [isLogin, setIsLogin] = useState(initialMode === 'login');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -62,13 +63,34 @@ export function AuthPage({ initialMode, onLoginSuccess }: AuthPageProps) {
   };
 
   return (
-    <div className="relative min-h-[calc(100vh-60px)] flex items-center justify-center bg-[#f4f6f8] py-12 px-4 overflow-hidden">
+    <div className="relative min-h-screen flex items-center justify-center bg-[#f4f6f8] py-12 px-4 overflow-hidden">
       {/* Decorative background geometric shapes */}
       <div className="absolute -bottom-16 -left-16 w-64 h-64 bg-amber-400/30 rounded-full blur-2xl pointer-events-none" />
       <div className="absolute -top-20 -right-20 w-80 h-80 bg-rose-500/20 rounded-full blur-3xl pointer-events-none" />
 
+      {/* Floating Navigation Header */}
+      {onBackToHome && (
+        <div className="absolute top-6 left-6 right-6 flex items-center justify-between z-20 max-w-4xl mx-auto">
+          <button
+            onClick={onBackToHome}
+            className="flex items-center gap-2 px-4 py-2 bg-white/90 backdrop-blur-md border border-gray-200/80 rounded-full text-xs font-bold text-gray-700 hover:text-emerald-600 hover:border-emerald-300 hover:shadow-md transition-all group"
+          >
+            <ArrowLeft className="w-4 h-4 text-gray-500 group-hover:text-emerald-600 transition-colors" />
+            Back to Home / Explore as Guest
+          </button>
+
+          <button
+            onClick={onBackToHome}
+            className="p-2 rounded-full bg-white/90 backdrop-blur-md border border-gray-200/80 text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors"
+            title="Cancel & Go Back"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+      )}
+
       {/* Split Card Container */}
-      <div className="relative bg-white rounded-3xl shadow-2xl border border-gray-100 w-full max-w-4xl overflow-hidden flex flex-col md:flex-row min-h-[520px] transition-all duration-500">
+      <div className="relative bg-white rounded-3xl shadow-2xl border border-gray-100 w-full max-w-4xl overflow-hidden flex flex-col md:flex-row min-h-[520px] transition-all duration-500 mt-10 md:mt-0">
         
         {/* Left Side: Welcome Overlay Banner */}
         <div className={`w-full md:w-5/12 bg-gradient-to-br from-emerald-600 via-teal-600 to-emerald-700 text-white p-8 md:p-10 flex flex-col justify-between relative overflow-hidden transition-all duration-500 ${isLogin ? 'order-first' : 'order-first'}`}>

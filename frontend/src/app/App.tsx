@@ -1186,8 +1186,8 @@ function AppContent() {
       )}
 
       {page === "admin" && userRole === "admin" && <AdminPanel />}
-      {page === "login" && <AuthPage initialMode="login" onLoginSuccess={handleLogin} />}
-      {page === "signup" && <AuthPage initialMode="signup" onLoginSuccess={handleLogin} />}
+      {page === "login" && <AuthPage initialMode="login" onLoginSuccess={handleLogin} onBackToHome={() => setPage("landing")} />}
+      {page === "signup" && <AuthPage initialMode="signup" onLoginSuccess={handleLogin} onBackToHome={() => setPage("landing")} />}
 
       <PaperDetailsModal
         paper={selectedPaperModal}
