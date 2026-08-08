@@ -12,6 +12,10 @@ from ..services.chat_service import (
     add_message_to_chat,
     delete_chat_session
 )
+from ..services.notification_service import (
+    get_user_notifications,
+    mark_notification_as_read
+)
 
 router = APIRouter()
 
@@ -26,6 +30,25 @@ class ChatResponse(BaseModel):
 
 class CreateSessionRequest(BaseModel):
     title: Optional[str] = "New Research Chat"
+
+# --- User Notifications Routes ---
+
+@router.get("/notifications")
+def list_notifications(current_user: Optional[dict] = Depends(get_current_user)):
+    try:
+        user_id = current_user.get("username") if current_user else None
+        return get_user_notifications(user_id=user_id)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/notifications/{notification_id}/read")
+def read_notification(notification_id: str, current_user: dict = Depends(get_current_user)):
+    try:
+        user_id = current_user["username"]
+        success = mark_notification_as_read(notification_id, user_id)
+        return {"message": "Notification marked as read", "success": success}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 # --- Chat Sessions & Conversational Memory Routes ---
 

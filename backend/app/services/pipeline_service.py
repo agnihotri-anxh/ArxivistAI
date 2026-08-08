@@ -132,6 +132,11 @@ def _task_harvest(max_records: int = 50):
         if hasattr(mod, "collect_papers"):
             mod.collect_papers(max_papers=max_records)
         pipeline_state.set_finished("completed")
+        try:
+            from .notification_service import broadcast_ingestion_notification
+            broadcast_ingestion_notification(count=max_records, action_type="arXiv Harvesting")
+        except Exception:
+            pass
     except Exception as e:
         pipeline_state.log(f"Error during harvesting: {e}\n{traceback.format_exc()}")
         pipeline_state.set_finished("error")

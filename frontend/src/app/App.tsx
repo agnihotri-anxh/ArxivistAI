@@ -94,6 +94,48 @@ function TopNav({
 }) {
   const [showResearchMenu, setShowResearchMenu] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showNotifMenu, setShowNotifMenu] = useState(false);
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  const fetchNotifications = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const headers: any = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const res = await fetch('/api/notifications', { headers });
+      if (res.ok) {
+        const text = await res.text();
+        if (text && text.trim()) {
+          const data = JSON.parse(text);
+          setNotifications(data.notifications || []);
+          setUnreadCount(data.unread_count || 0);
+        }
+      }
+    } catch (e) {
+      console.error("Failed to fetch notifications:", e);
+    }
+  };
+
+  const markRead = async (notifId: string) => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      await fetch(`/api/notifications/${notifId}/read`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      fetchNotifications();
+    } catch (e) {
+      console.error("Failed to mark notification read:", e);
+    }
+  };
+
+  useEffect(() => {
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 5000);
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-border shadow-xs">
@@ -178,10 +220,60 @@ function TopNav({
               ArXivist AI
             </button>
 
-            <button className="relative p-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground">
-              <Bell className="w-4.5 h-4.5" />
-              <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-primary rounded-full" />
-            </button>
+            <div className="relative">
+              <button
+                onClick={() => setShowNotifMenu(!showNotifMenu)}
+                className="relative p-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+                title="Notifications"
+              >
+                <Bell className="w-4.5 h-4.5" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 px-1.5 py-0.2 text-[10px] font-bold bg-rose-500 text-white rounded-full shadow-xs animate-pulse">
+                    {unreadCount}
+                  </span>
+                )}
+              </button>
+
+              {showNotifMenu && (
+                <div className="absolute right-0 top-full mt-2 w-80 bg-white rounded-2xl shadow-2xl border border-border p-4 z-50 space-y-3">
+                  <div className="flex items-center justify-between pb-2 border-b border-border">
+                    <h4 className="font-bold text-xs text-foreground uppercase tracking-wider">Notifications</h4>
+                    <span className="text-[10px] font-semibold px-2 py-0.5 bg-primary/10 text-primary rounded-full">
+                      {unreadCount} New
+                    </span>
+                  </div>
+
+                  <div className="max-h-72 overflow-y-auto space-y-2 custom-scrollbar">
+                    {notifications.length > 0 ? (
+                      notifications.map((n) => (
+                        <div
+                          key={n.notification_id}
+                          onClick={() => {
+                            if (!n.is_read) markRead(n.notification_id);
+                            setShowNotifMenu(false);
+                            setPage("browse");
+                          }}
+                          className={`p-3 rounded-xl border text-xs space-y-1 cursor-pointer transition-all ${
+                            n.is_read
+                              ? "bg-slate-50 border-slate-200/80 text-slate-600"
+                              : "bg-emerald-50/70 border-emerald-200 text-slate-900 font-semibold shadow-2xs"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold truncate pr-2 text-slate-900">{n.title}</span>
+                            {!n.is_read && <span className="w-2 h-2 rounded-full bg-emerald-600 shrink-0" />}
+                          </div>
+                          <p className="text-[11px] text-slate-600 leading-snug line-clamp-2">{n.message}</p>
+                          <p className="text-[10px] text-slate-400 font-mono pt-1">{n.created_at.slice(0, 16).replace("T", " ")}</p>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-xs text-slate-400 italic text-center py-4">No recent system notifications.</p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
 
             <div className="relative">
               <button

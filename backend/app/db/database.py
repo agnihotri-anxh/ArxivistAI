@@ -9,6 +9,7 @@ users_collection = db["users"]
 raw_arxiv_collection = db["raw_arxiv_metadata"]
 papers_collection = db["papers"]
 chats_collection = db["chats"]
+notifications_collection = db["notifications"]
 
 # Ensure Indexes
 try:
@@ -19,6 +20,8 @@ try:
     papers_collection.create_index("year")
     chats_collection.create_index("chat_id", unique=True)
     chats_collection.create_index("user_id")
+    notifications_collection.create_index("notification_id", unique=True)
+    notifications_collection.create_index("created_at")
 except Exception as e:
     print(f"[MongoDB] Index setup note: {e}")
 
@@ -36,3 +39,6 @@ def get_papers_collection():
 
 def get_chats_collection():
     return chats_collection
+
+def get_notifications_collection():
+    return notifications_collection
