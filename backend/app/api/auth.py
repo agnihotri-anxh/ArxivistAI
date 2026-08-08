@@ -75,3 +75,12 @@ def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
         data={"sub": user["username"]}, expires_delta=access_token_expires
     )
     return {"access_token": access_token, "token_type": "bearer"}
+
+@router.get("/me")
+def read_current_user(current_user: dict = Depends(get_current_user)):
+    created_at = current_user.get("created_at")
+    created_str = created_at.isoformat() if isinstance(created_at, datetime) else str(created_at or "")
+    return {
+        "username": current_user["username"],
+        "created_at": created_str
+    }

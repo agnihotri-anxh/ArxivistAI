@@ -10,6 +10,7 @@ sys.path.append(str(BASE_DIR))
 
 from backend.vector_db.connection import get_milvus_client, get_embedding_function
 from backend.vector_db.config import COLLECTION_NAME
+from .category_utils import format_category_name
 
 # Initialize connections lazily or globally
 client = None
@@ -36,11 +37,14 @@ def get_all_papers(limit: int = 500) -> List[Dict]:
     
     papers = []
     for r in res:
+        raw_cat = r.get("categories", "").split(",")[0].strip() if r.get("categories") else "Research"
+        readable_cat = format_category_name(raw_cat)
         papers.append({
             "id": r.get("paper_id", ""),
             "title": r.get("title", ""),
             "authors": [a.strip() for a in r.get("authors", "").split(",")],
-            "category": r.get("categories", "").split(",")[0] if r.get("categories") else "Research",
+            "category": readable_cat,
+            "raw_category": raw_cat,
             "year": str(r.get("published_year", "")),
             "abstract": r.get("text", "")[:300] + "...",
             "tags": [],

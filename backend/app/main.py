@@ -3,9 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 from .core.config import settings
-from .api import routes, auth
-# Initialize app
-
+from .api import routes, auth, admin
 
 app = FastAPI(title=settings.API_TITLE)
 
@@ -19,6 +17,7 @@ app.add_middleware(
 )
 
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
+app.include_router(admin.router, prefix="/api/admin", tags=["admin"])
 app.include_router(routes.router, prefix="/api")
 
 # Serve PDFs

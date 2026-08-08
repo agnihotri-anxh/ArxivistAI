@@ -34,7 +34,6 @@ def stage_b_visual_isolation(pdf_path: Path):
         
         for i, img_b in enumerate(image_blocks):
             img_bbox = img_b["bbox"]
-            # Filter out tiny icon/emoji images
             width = img_bbox[2] - img_bbox[0]
             height = img_bbox[3] - img_bbox[1]
             if width < 50 or height < 50:
@@ -115,35 +114,35 @@ def stage_c_compile_json(paper_id: str, visual_metadata: list):
     print(f"JSON compiled and saved to {json_path}")
     return json_path
 
-if __name__ == "__main__":
+def main(max_records=None):
     pdfs = list(PDF_DIR.glob("*.pdf"))
     print(f"Found {len(pdfs)} downloaded PDFs ready for Visual Extraction.")
     
+    extracted_count = 0
     for pdf_path in pdfs:
+        if max_records is not None and extracted_count >= max_records:
+            print(f"Reached batch extraction limit of {max_records} files.")
+            break
+            
         paper_id = pdf_path.stem
         json_path = JSON_DIR / f"{paper_id}.json"
         
         if json_path.exists():
-            print(f"Skipping {paper_id} - Final JSON already exists!")
-            # Clean up PDF if it was left behind
             try:
                 pdf_path.unlink()
             except Exception:
                 pass
             continue
             
-        # Make sure Marker successfully ran on this PDF first
         md_file = MD_DIR / paper_id / f"{paper_id}.md"
         if not md_file.exists():
-            print(f"Skipping {paper_id} - No Markdown found. Did Stage 2 finish for this PDF?")
             continue
             
         try:
             visual_metadata = stage_b_visual_isolation(pdf_path)
             stage_c_compile_json(paper_id, visual_metadata)
-            
-            # Delete the PDF to save space!
             pdf_path.unlink()
+            extracted_count += 1
             print(f"Successfully processed and cleaned up {pdf_path.name}")
         except Exception as e:
             error_msg = f"Failed to process {pdf_path.name}: {e}"
@@ -152,4 +151,7 @@ if __name__ == "__main__":
             with open(FAILED_LOG, "a", encoding="utf-8") as f:
                 f.write(error_msg + "\n")
                 
-    print("\nPhase 3 (Visuals & Compile) Complete! Check failed_stage3.txt for any errors.")
+    print(f"\nPhase 3 (Visuals & Compile) Complete! Processed {extracted_count} PDFs.")
+
+if __name__ == "__main__":
+    main()

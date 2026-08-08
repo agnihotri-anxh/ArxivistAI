@@ -31,11 +31,14 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess }: AuthModalProps) {
           method: 'POST',
           body: formData
         });
+        const text = await response.text();
+        let data: any = {};
+        if (text && text.trim()) {
+          try { data = JSON.parse(text); } catch {}
+        }
         if (!response.ok) {
-          const data = await response.json();
           throw new Error(data.detail || 'Login failed');
         }
-        const data = await response.json();
         onLoginSuccess(data.access_token);
         onClose();
       } else {
@@ -44,8 +47,12 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess }: AuthModalProps) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ username, password })
         });
+        const text = await response.text();
+        let data: any = {};
+        if (text && text.trim()) {
+          try { data = JSON.parse(text); } catch {}
+        }
         if (!response.ok) {
-          const data = await response.json();
           throw new Error(data.detail || 'Registration failed');
         }
         setIsLogin(true);

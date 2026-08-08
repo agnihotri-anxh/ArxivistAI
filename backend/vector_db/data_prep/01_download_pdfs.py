@@ -29,7 +29,6 @@ def download_pdf(paper_id: str, pdf_url: str, output_path: Path):
             if resp.status_code == 200:
                 with open(output_path, "wb") as f:
                     f.write(resp.content)
-                # Sleep to respect rate limits
                 time.sleep(1.0)
                 return True
             else:
@@ -40,32 +39,37 @@ def download_pdf(paper_id: str, pdf_url: str, output_path: Path):
             time.sleep(2 * (attempt + 1))
     return False
 
-if __name__ == "__main__":
+def main(max_records=None):
     if not METADATA_PATH.exists():
         print(f"Error: metadata.json not found at {METADATA_PATH}")
-        exit(1)
+        return
         
     with open(METADATA_PATH, "r", encoding="utf-8") as f:
         metadata = json.load(f)
         
     print(f"Loaded {len(metadata)} papers from metadata.json.")
     
+    downloaded_count = 0
     for paper_id, data in metadata.items():
+        if max_records is not None and downloaded_count >= max_records:
+            print(f"Reached batch limit of {max_records} PDF downloads.")
+            break
+            
         json_path = JSON_DIR / f"{paper_id}.json"
+        pdf_path = PDF_DIR / f"{paper_id}.pdf"
         
-        # Idempotency check: If final JSON exists, we don't even need to download it
-        if json_path.exists():
-            print(f"Skipping {paper_id} - Final JSON already exists!")
+        if json_path.exists() or (pdf_path.exists() and pdf_path.stat().st_size > 0):
             continue
             
         pdf_url = data.get("pdf_url")
         if not pdf_url:
-            print(f"Skipping {paper_id} - No pdf_url in metadata.")
             continue
             
-        pdf_path = PDF_DIR / f"{paper_id}.pdf"
         success = download_pdf(paper_id, pdf_url, pdf_path)
-        if not success:
-            print(f"Failed to download {paper_id}")
+        if success:
+            downloaded_count += 1
             
-    print("\nPhase 1 (Download) Complete!")
+    print(f"\nPhase 1 (Download) Complete! Downloaded {downloaded_count} PDFs.")
+
+if __name__ == "__main__":
+    main()

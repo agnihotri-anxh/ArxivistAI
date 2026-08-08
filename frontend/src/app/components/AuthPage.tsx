@@ -28,11 +28,14 @@ export function AuthPage({ initialMode, onLoginSuccess }: AuthPageProps) {
           method: 'POST',
           body: formData
         });
+        const text = await response.text();
+        let data: any = {};
+        if (text && text.trim()) {
+          try { data = JSON.parse(text); } catch {}
+        }
         if (!response.ok) {
-          const data = await response.json();
           throw new Error(data.detail || 'Login failed. Please check credentials.');
         }
-        const data = await response.json();
         onLoginSuccess(data.access_token);
       } else {
         const response = await fetch('/api/auth/register', {
@@ -40,8 +43,12 @@ export function AuthPage({ initialMode, onLoginSuccess }: AuthPageProps) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ username, password })
         });
+        const text = await response.text();
+        let data: any = {};
+        if (text && text.trim()) {
+          try { data = JSON.parse(text); } catch {}
+        }
         if (!response.ok) {
-          const data = await response.json();
           throw new Error(data.detail || 'Registration failed.');
         }
         setIsLogin(true);

@@ -11,7 +11,7 @@ from vector_db.connection import get_milvus_client, get_embedding_function
 from vector_db.schema import setup_collection
 from vector_db.chunking import get_splitters, extract_conclusion_and_strip_references
 
-def main():
+def main(max_records=None):
     client = get_milvus_client()
     collection_name = setup_collection(client, COLLECTION_NAME)
     
@@ -25,7 +25,12 @@ def main():
     json_files = list(JSON_DIR.glob("*.json"))
     print(f"Found {len(json_files)} extracted JSON files to index.")
     
+    indexed_count = 0
     for json_file in json_files:
+        if max_records is not None and indexed_count >= max_records:
+            print(f"Reached batch limit of {max_records} vector embedding documents.")
+            break
+            
         with open(json_file, "r", encoding="utf-8") as f:
             paper_data = json.load(f)
             
@@ -48,81 +53,93 @@ def main():
         authors = ", ".join(rich_meta.get("authors", []))[:9999]
         summary = rich_meta.get("summary", "")
         categories = ", ".join(rich_meta.get("categories", []))[:499]
-        
         published = rich_meta.get("published", "")
-        try:
-            published_year = int(published[:4]) if published else 0
-        except ValueError:
-            published_year = 0
-            
+        pdf_url = rich_meta.get("pdf_url", "")
+        
         full_text = paper_data.get("full_text", "")
+        cleaned_text, conclusion_text = extract_conclusion_and_strip_references(full_text)
         
-        clean_text, conclusion_text = extract_conclusion_and_strip_references(full_text)
+        md_docs = markdown_splitter.create_documents([cleaned_text])
         
-        md_header_splits = markdown_splitter.split_text(clean_text)
-        chunks = recursive_splitter.split_documents(md_header_splits)
-        
-        if not chunks:
-            print(f"Warning: No text chunks found for {paper_id}")
-            continue
-            
-        enhanced_context = f"# {title}\n\n**Abstract:** {summary}\n\n"
-        if conclusion_text:
-            enhanced_context += f"**Key Findings (Conclusion):** {conclusion_text[:1500]}...\n\n"
-        chunks[0].page_content = enhanced_context + chunks[0].page_content
-        
-        data_to_insert = []
-        chunk_texts_for_embedding = []
-        
-        for idx, doc in enumerate(chunks):
-            chunk_str = doc.page_content
-            header_context = " > ".join(doc.metadata.values()) if doc.metadata else ""
-            if header_context:
-                chunk_str = f"[{header_context}]\n{chunk_str}"
+        final_chunks = []
+        for doc in md_docs:
+            if len(doc.page_content) > 1000:
+                sub_docs = recursive_splitter.create_documents([doc.page_content])
+                final_chunks.extend(sub_docs)
+            else:
+                final_chunks.append(doc)
                 
-            chunk_str = chunk_str[:59000]
-            contains_image = bool(re.search(r"\[FIGURE_.*_INSERT_HERE:", chunk_str))
-            
-            chunk_texts_for_embedding.append(chunk_str)
-            
-            data_to_insert.append({
-                "id": f"{paper_id}_{idx}",
+        chunks_data = []
+        
+        # 1. Title chunk (chunk 0)
+        chunks_data.append({
+            "paper_id": paper_id,
+            "chunk_index": 0,
+            "text": f"Title: {title}\nSummary: {summary}",
+            "section": "Header",
+            "title": title,
+            "authors": authors,
+            "categories": categories,
+            "published": published,
+            "pdf_url": pdf_url
+        })
+        
+        # 2. Main content chunks
+        for idx, chunk in enumerate(final_chunks, start=1):
+            chunks_data.append({
                 "paper_id": paper_id,
-                "title": title[:1999],
-                "authors": authors,
-                "published_year": published_year,
-                "categories": categories,
                 "chunk_index": idx,
-                "contains_image": contains_image,
-                "text": chunk_str
+                "text": chunk.page_content,
+                "section": "Body",
+                "title": title,
+                "authors": authors,
+                "categories": categories,
+                "published": published,
+                "pdf_url": pdf_url
             })
             
-        print(f"  -> Generating Hybrid Embeddings for {len(chunk_texts_for_embedding)} chunks...")
-        embeddings = bge_m3_ef.encode_documents(chunk_texts_for_embedding)
+        # 3. Conclusion chunk
+        if conclusion_text:
+            chunks_data.append({
+                "paper_id": paper_id,
+                "chunk_index": len(final_chunks) + 1,
+                "text": f"Conclusion:\n{conclusion_text}",
+                "section": "Conclusion",
+                "title": title,
+                "authors": authors,
+                "categories": categories,
+                "published": published,
+                "pdf_url": pdf_url
+            })
+            
+        # Generate BGE-M3 Embeddings
+        texts = [c["text"] for c in chunks_data]
+        embeddings = bge_m3_ef(texts)
         
         dense_vectors = embeddings["dense"]
         sparse_vectors = embeddings["sparse"]
         
-        for i in range(len(data_to_insert)):
-            data_to_insert[i]["dense_vector"] = dense_vectors[i]
-            # Convert SciPy matrix row to dictionary for Milvus insertion
-            sparse_row = sparse_vectors[i]
-            if hasattr(sparse_row, 'coords') and hasattr(sparse_row, 'data'):
-                # Handle scipy coo_array
-                data_to_insert[i]["sparse_vector"] = {int(k): float(v) for k, v in zip(sparse_row.coords[0], sparse_row.data)}
-            elif hasattr(sparse_row, 'indices') and hasattr(sparse_row, 'data'):
-                # Handle scipy csr_array
-                data_to_insert[i]["sparse_vector"] = {int(k): float(v) for k, v in zip(sparse_row.indices, sparse_row.data)}
-            elif isinstance(sparse_row, dict):
-                data_to_insert[i]["sparse_vector"] = sparse_row
-            else:
-                # Fallback if it's some other format
-                data_to_insert[i]["sparse_vector"] = sparse_row
+        rows = []
+        for i, c in enumerate(chunks_data):
+            rows.append({
+                "paper_id": c["paper_id"],
+                "chunk_index": c["chunk_index"],
+                "text": c["text"],
+                "section": c["section"],
+                "title": c["title"],
+                "authors": c["authors"],
+                "categories": c["categories"],
+                "published": c["published"],
+                "pdf_url": c["pdf_url"],
+                "vector": dense_vectors[i],
+                "sparse_vector": sparse_vectors[i]
+            })
             
-        client.insert(collection_name=collection_name, data=data_to_insert)
-        print(f"  -> Inserted {len(data_to_insert)} chunks into Milvus for {paper_id}")
+        client.insert(collection_name=collection_name, data=rows)
+        print(f"Successfully inserted {len(rows)} chunks into Milvus for {paper_id}")
+        indexed_count += 1
         
-    print("\nVector Database Construction Complete!")
+    print(f"\nPhase 4 (Milvus Ingestion) Complete! Indexed {indexed_count} documents.")
 
 if __name__ == "__main__":
     main()

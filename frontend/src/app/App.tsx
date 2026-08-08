@@ -29,8 +29,10 @@ import {
 import researchLogoSvg from "@/imports/logo.svg";
 import { ImageWithFallback } from "@/app/components/figma/ImageWithFallback";
 import { AuthPage } from "@/app/components/AuthPage";
+import { AdminPanel } from "@/app/components/AdminPanel";
+import { getCategoryBadgeStyle } from "@/app/utils/categories";
 
-type Page = "landing" | "browse" | "chat" | "login" | "signup";
+type Page = "landing" | "browse" | "chat" | "login" | "signup" | "admin";
 
 const CHAT_HISTORY = [
   {
@@ -55,22 +57,11 @@ function Logo({ compact = false }: { compact?: boolean }) {
 }
 
 function CategoryBadge({ category }: { category: string }) {
-  const colors: Record<string, string> = {
-    "Machine Learning": "bg-violet-100 text-violet-700",
-    "Computer Vision": "bg-blue-100 text-blue-700",
-    NLP: "bg-emerald-100 text-emerald-700",
-    "Reinforcement Learning": "bg-amber-100 text-amber-700",
-    Robotics: "bg-orange-100 text-orange-700",
-    "Quantum Computing": "bg-cyan-100 text-cyan-700",
-    Bioinformatics: "bg-pink-100 text-pink-700",
-    Cryptography: "bg-slate-100 text-slate-600",
-    Systems: "bg-red-100 text-red-700",
-    Theory: "bg-indigo-100 text-indigo-700",
-  };
+  const badgeStyle = getCategoryBadgeStyle(category);
   return (
     <span
-      className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium ${colors[category] ?? "bg-gray-100 text-gray-600"}`}
-      style={{ fontFamily: "'JetBrains Mono', monospace" }}
+      className={`inline-flex items-center px-2.5 py-0.5 rounded-md text-[11px] font-medium border ${badgeStyle} shadow-2xs transition-colors`}
+      style={{ fontFamily: "'Inter', sans-serif" }}
     >
       {category}
     </span>
@@ -143,6 +134,12 @@ function TopNav({
           >
             Browse
           </button>
+          <button
+            onClick={() => setPage("admin")}
+            className={`px-3 py-1.5 text-sm rounded-md transition-colors ${currentPage === "admin" ? "text-primary font-medium" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            Admin
+          </button>
 
           {/* Research dropdown */}
           <div className="relative">
@@ -206,20 +203,23 @@ function TopNav({
                 <p className="text-xs text-muted-foreground mt-0.5 mb-3">
                   {isLoggedIn ? 'You are logged in' : 'To access AI features and chat'}
                 </p>
-                <div className="flex gap-2">
+                <div className="flex flex-col gap-2">
+                  <button onClick={() => { setShowUserMenu(false); setPage("admin"); }} className="w-full py-1.5 text-xs font-medium bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors">
+                    ⚙️ Admin Control Panel
+                  </button>
                   {isLoggedIn ? (
-                    <button onClick={handleLogout} className="flex-1 py-1.5 text-sm font-medium border border-red-500 text-red-500 rounded-lg hover:bg-red-50 transition-colors">
+                    <button onClick={handleLogout} className="w-full py-1.5 text-xs font-medium border border-red-500 text-red-500 rounded-lg hover:bg-red-50 transition-colors">
                       Log Out
                     </button>
                   ) : (
-                    <>
+                    <div className="flex gap-2">
                       <button onClick={() => { setShowUserMenu(false); openAuth('signup'); }} className="flex-1 py-1.5 text-sm font-medium border border-primary text-primary rounded-lg hover:bg-accent transition-colors">
                         Sign Up
                       </button>
                       <button onClick={() => { setShowUserMenu(false); openAuth('login'); }} className="flex-1 py-1.5 text-sm font-medium border border-primary text-primary rounded-lg hover:bg-accent transition-colors">
                         Log In
                       </button>
-                    </>
+                    </div>
                   )}
                 </div>
               </div>
@@ -632,25 +632,35 @@ function BrowsePage({ papers, categories, years }: { papers: any[], categories: 
   const [selectedYear, setSelectedYear] = useState("All");
   const [showFilters, setShowFilters] = useState(false);
 
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    papers.forEach((p) => {
+      if (p.category) {
+        counts[p.category] = (counts[p.category] || 0) + 1;
+      }
+    });
+    return counts;
+  }, [papers]);
+
   const filtered = useMemo(() => {
     return papers.filter((p) => {
       const matchesSearch =
         !searchQuery ||
         p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.authors.some((a) => a.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        p.authors.some((a: string) => a.toLowerCase().includes(searchQuery.toLowerCase())) ||
         p.abstract.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.tags.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase()));
+        (p.tags && p.tags.some((t: string) => t.toLowerCase().includes(searchQuery.toLowerCase())));
       const matchesCat = selectedCategory === "All" || p.category === selectedCategory;
       const matchesYear = selectedYear === "All" || p.year === selectedYear;
       return matchesSearch && matchesCat && matchesYear;
-    }); // Removed sort as we only have dates now, which might not be fully parsed
+    });
   }, [papers, searchQuery, selectedCategory, selectedYear]);
 
   return (
     <div className="flex min-h-[calc(100vh-56px)]">
       {/* Filter sidebar */}
       <aside
-        className={`${showFilters ? "block" : "hidden"} md:block w-56 shrink-0 bg-sidebar border-r border-sidebar-border`}
+        className={`${showFilters ? "block" : "hidden"} md:block w-64 shrink-0 bg-sidebar border-r border-sidebar-border`}
       >
         <div className="sticky top-14 max-h-[calc(100vh-56px)] overflow-y-auto p-4 space-y-6">
           <div className="flex items-center justify-between">
@@ -679,19 +689,31 @@ function BrowsePage({ papers, categories, years }: { papers: any[], categories: 
               Category
             </p>
             <div className="space-y-0.5">
-              {categories.map((cat) => (
-                <button
-                  key={cat}
-                  onClick={() => setSelectedCategory(cat)}
-                  className={`w-full text-left px-3 py-1.5 rounded-lg text-sm transition-colors ${
-                    selectedCategory === cat
-                      ? "bg-primary text-white"
-                      : "text-sidebar-foreground hover:bg-sidebar-accent"
-                  }`}
-                >
-                  {cat}
-                </button>
-              ))}
+              {categories.map((cat) => {
+                const count = cat === "All" ? papers.length : (categoryCounts[cat] || 0);
+                return (
+                  <button
+                    key={cat}
+                    onClick={() => setSelectedCategory(cat)}
+                    className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-xs transition-colors ${
+                      selectedCategory === cat
+                        ? "bg-primary text-white font-medium shadow-xs"
+                        : "text-sidebar-foreground hover:bg-sidebar-accent"
+                    }`}
+                  >
+                    <span className="truncate pr-2 text-left">{cat}</span>
+                    <span
+                      className={`text-[10px] px-1.5 py-0.2 rounded-full shrink-0 ${
+                        selectedCategory === cat
+                          ? "bg-white/20 text-white"
+                          : "bg-sidebar-accent text-sidebar-accent-foreground"
+                      }`}
+                    >
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -882,8 +904,12 @@ function ChatPage({ token }: { token: string | null }) {
         },
         body: JSON.stringify({ question: userQuestion })
       });
-      const data = await response.json();
-      setMessages((prev) => [...prev, { role: "assistant" as const, content: data.answer || data.detail }]);
+      const text = await response.text();
+      let data: any = {};
+      if (text && text.trim()) {
+        try { data = JSON.parse(text); } catch {}
+      }
+      setMessages((prev) => [...prev, { role: "assistant" as const, content: data.answer || data.detail || "No response received." }]);
     } catch (e) {
       setMessages((prev) => [...prev, { role: "assistant" as const, content: "Error connecting to AI backend." }]);
     } finally {
@@ -1084,9 +1110,13 @@ function AppContent() {
   const [papers, setPapers] = useState<any[]>([]);
   useEffect(() => {
     fetch('/api/papers')
-      .then(res => res.json())
+      .then(async (res) => {
+        if (!res.ok) return [];
+        const text = await res.text();
+        return text && text.trim() ? JSON.parse(text) : [];
+      })
       .then(data => {
-        if (data && data.length > 0) setPapers(data);
+        if (Array.isArray(data) && data.length > 0) setPapers(data);
       })
       .catch(err => console.error("Failed to fetch papers:", err));
   }, []);
@@ -1122,6 +1152,7 @@ function AppContent() {
       {page === "landing" && <LandingPage setPage={setPage} isLoggedIn={!!token} openAuth={(mode) => setPage(mode)} totalPapers={papers.length} totalCategories={categories.length - 1} categories={categories} papers={papers} />}
       {page === "browse" && <BrowsePage papers={papers} categories={categories} years={years} />}
       {page === "chat" && <ChatPage token={token} />}
+      {page === "admin" && <AdminPanel />}
       {page === "login" && <AuthPage initialMode="login" onLoginSuccess={handleLogin} />}
       {page === "signup" && <AuthPage initialMode="signup" onLoginSuccess={handleLogin} />}
     </div>
