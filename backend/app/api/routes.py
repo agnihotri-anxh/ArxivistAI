@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from .auth import get_current_user
 from ..services.agent import run_agentic_rag
 from ..services.daily_sync import run_daily_sync
-from ..services.paper_service import get_website_papers
+from ..services.paper_service import get_website_papers, get_search_suggestions
 from ..services.chat_service import (
     get_user_chat_sessions,
     create_chat_session,
@@ -125,6 +125,15 @@ async def chat(request: ChatRequest, current_user: dict = Depends(get_current_us
             answer=answer,
             message_id=msg_entry.get("id")
         )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# --- Search Suggestions Endpoint ---
+
+@router.get("/search/suggestions")
+async def get_search_suggestions_api(q: str = Query(..., min_length=1), limit: int = Query(5, ge=1, le=10)):
+    try:
+        return get_search_suggestions(query_str=q, limit=limit)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

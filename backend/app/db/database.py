@@ -22,6 +22,17 @@ try:
     chats_collection.create_index("user_id")
     notifications_collection.create_index("notification_id", unique=True)
     notifications_collection.create_index("created_at")
+    
+    # Weighted Text Index for Ranked Search & Autocomplete
+    papers_collection.create_index(
+        [
+            ("title", pymongo.TEXT),
+            ("authors", pymongo.TEXT),
+            ("full_abstract", pymongo.TEXT)
+        ],
+        weights={"title": 10, "authors": 5, "full_abstract": 1},
+        name="papers_weighted_text_index"
+    )
 except Exception as e:
     print(f"[MongoDB] Index setup note: {e}")
 

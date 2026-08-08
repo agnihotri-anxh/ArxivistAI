@@ -82,7 +82,9 @@ function TopNav({
   setSearchQuery,
   openAuth,
   isLoggedIn,
+  userRole,
   handleLogout,
+  onPaperSelect
 }: {
   currentPage: Page;
   setPage: (page: Page) => void;
@@ -90,13 +92,37 @@ function TopNav({
   setSearchQuery: (q: string) => void;
   openAuth: (mode: 'login' | 'signup') => void;
   isLoggedIn: boolean;
+  userRole: string;
   handleLogout: () => void;
+  onPaperSelect: (paper: any) => void;
 }) {
   const [showResearchMenu, setShowResearchMenu] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showNotifMenu, setShowNotifMenu] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
+  useEffect(() => {
+    if (searchQuery.trim().length >= 2) {
+      const timer = setTimeout(() => {
+        fetch(`/api/search/suggestions?q=${encodeURIComponent(searchQuery.trim())}&limit=5`)
+          .then(async (res) => {
+            if (res.ok) {
+              const text = await res.text();
+              if (text && text.trim()) setSuggestions(JSON.parse(text));
+            }
+          })
+          .catch(() => setSuggestions([]));
+      }, 150);
+      setShowSuggestions(true);
+      return () => clearTimeout(timer);
+    } else {
+      setSuggestions([]);
+      setShowSuggestions(false);
+    }
+  }, [searchQuery]);
 
   const fetchNotifications = async () => {
     try {
@@ -146,16 +172,65 @@ function TopNav({
               <Logo />
             </button>
             {currentPage !== "browse" && (
-              <div className="relative hidden md:block w-72">
+              <div className="relative hidden md:block w-80">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <input
                   type="text"
                   placeholder="Search 17,000+ research papers..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') setPage("browse"); }}
+                  onFocus={() => { if (searchQuery.trim().length >= 2) setShowSuggestions(true); }}
+                  onKeyDown={(e) => { 
+                    if (e.key === 'Enter') { 
+                      setShowSuggestions(false); 
+                      setPage("browse"); 
+                    } 
+                  }}
                   className="w-full pl-9 pr-4 py-1.5 text-xs bg-muted rounded-full border border-transparent focus:border-primary focus:bg-white outline-none transition-all"
                 />
+
+                {showSuggestions && suggestions.length > 0 && (
+                  <div className="absolute left-0 top-full mt-2 w-96 bg-white rounded-2xl shadow-2xl border border-border p-3 z-50 space-y-2">
+                    <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 px-1">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Top 5 Matched Papers</span>
+                      <button onClick={() => setShowSuggestions(false)} className="text-[10px] text-slate-400 hover:text-slate-600">Close</button>
+                    </div>
+
+                    <div className="space-y-1.5 max-h-80 overflow-y-auto custom-scrollbar">
+                      {suggestions.map((p, idx) => (
+                        <div
+                          key={idx}
+                          onClick={() => {
+                            setShowSuggestions(false);
+                            onPaperSelect(p);
+                          }}
+                          className="p-2 rounded-xl hover:bg-emerald-50/70 border border-transparent hover:border-emerald-200 transition-all cursor-pointer space-y-1 group"
+                        >
+                          <div className="flex items-center justify-between">
+                            <CategoryBadge category={p.category} />
+                            <span className="text-[10px] font-mono text-slate-400">{p.year}</span>
+                          </div>
+                          <p className="text-xs font-bold text-slate-900 group-hover:text-primary leading-snug line-clamp-1">
+                            {p.title}
+                          </p>
+                          <p className="text-[11px] text-slate-500 line-clamp-1">
+                            {Array.isArray(p.authors) ? p.authors.join(", ") : p.authors}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        setShowSuggestions(false);
+                        setPage("browse");
+                      }}
+                      className="w-full text-center py-1.5 text-xs font-bold text-primary hover:underline bg-slate-50 rounded-xl"
+                    >
+                      See all matched papers for "{searchQuery}" →
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -174,12 +249,14 @@ function TopNav({
               >
                 Browse
               </button>
-              <button
-                onClick={() => setPage("admin")}
-                className={`px-3 py-1.5 text-sm rounded-md transition-colors ${currentPage === "admin" ? "text-primary font-medium" : "text-muted-foreground hover:text-foreground"}`}
-              >
-                Admin
-              </button>
+              {userRole === "admin" && (
+                <button
+                  onClick={() => setPage("admin")}
+                  className={`px-3 py-1.5 text-sm rounded-md transition-colors ${currentPage === "admin" ? "text-primary font-medium" : "text-muted-foreground hover:text-foreground"}`}
+                >
+                  Admin
+                </button>
+              )}
 
               <div className="relative">
                 <button
@@ -289,9 +366,11 @@ function TopNav({
                     {isLoggedIn ? 'You are logged in' : 'To access AI features and chat'}
                   </p>
                   <div className="flex flex-col gap-2">
-                    <button onClick={() => { setShowUserMenu(false); setPage("admin"); }} className="w-full py-1.5 text-xs font-medium bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors">
-                      ⚙️ Admin Control Panel
-                    </button>
+                    {userRole === "admin" && (
+                      <button onClick={() => { setShowUserMenu(false); setPage("admin"); }} className="w-full py-1.5 text-xs font-medium bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors">
+                        ⚙️ Admin Control Panel
+                      </button>
+                    )}
                     {isLoggedIn ? (
                       <button onClick={() => { setShowUserMenu(false); handleLogout(); }} className="w-full py-1.5 text-xs font-medium border border-red-500 text-red-500 rounded-lg hover:bg-red-50 transition-colors">
                         Log Out
@@ -1006,10 +1085,31 @@ function AppContent() {
   const [page, setPage] = useState<Page>("landing");
   const [navSearch, setNavSearch] = useState("");
   const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
+  const [userRole, setUserRole] = useState<string>("user");
   const [activeCategory, setActiveCategory] = useState("All");
   const [activeYear, setActiveYear] = useState("All");
   const [selectedPaperModal, setSelectedPaperModal] = useState<any | null>(null);
   const [promptPaperContext, setPromptPaperContext] = useState<string>("");
+
+  useEffect(() => {
+    if (token) {
+      fetch('/api/auth/me', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+        .then(async (res) => {
+          if (res.ok) {
+            const text = await res.text();
+            if (text && text.trim()) {
+              const data = JSON.parse(text);
+              setUserRole(data.role || "user");
+            }
+          }
+        })
+        .catch(() => setUserRole("user"));
+    } else {
+      setUserRole("user");
+    }
+  }, [token]);
 
   const handleLogin = (newToken: string) => {
     localStorage.setItem('token', newToken);
@@ -1020,7 +1120,8 @@ function AppContent() {
   const handleLogout = () => {
     localStorage.removeItem('token');
     setToken(null);
-    if (page === "chat") setPage("landing");
+    setUserRole("user");
+    if (page === "chat" || page === "admin") setPage("landing");
   };
 
   const handleAskAIAboutPaper = (paper: any) => {
@@ -1038,12 +1139,18 @@ function AppContent() {
       {page !== "login" && page !== "signup" && (
         <TopNav
           currentPage={page}
-          setPage={(p) => { if (p === "chat" && !token) setPage("login"); else setPage(p); }}
+          setPage={(p) => { 
+            if (p === "chat" && !token) setPage("login");
+            else if (p === "admin" && userRole !== "admin") setPage("landing");
+            else setPage(p); 
+          }}
           searchQuery={navSearch}
           setSearchQuery={setNavSearch}
           openAuth={(mode) => setPage(mode)}
           isLoggedIn={!!token}
+          userRole={userRole}
           handleLogout={handleLogout}
+          onPaperSelect={(paper) => setSelectedPaperModal(paper)}
         />
       )}
 
@@ -1078,7 +1185,7 @@ function AppContent() {
         />
       )}
 
-      {page === "admin" && <AdminPanel />}
+      {page === "admin" && userRole === "admin" && <AdminPanel />}
       {page === "login" && <AuthPage initialMode="login" onLoginSuccess={handleLogin} />}
       {page === "signup" && <AuthPage initialMode="signup" onLoginSuccess={handleLogin} />}
 

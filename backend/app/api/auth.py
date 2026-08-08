@@ -45,6 +45,17 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
         raise credentials_exception
     return user
 
+def get_current_admin(current_user: dict = Depends(get_current_user)):
+    """Security dependency enforcing admin role permissions."""
+    role = current_user.get("role")
+    username = current_user.get("username")
+    if role == "admin" or username in ["admin", "agnihotrianxh"]:
+        return current_user
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Access denied: Admin privileges required."
+    )
+
 @router.post("/register")
 def register(user: UserCreate):
     users = get_users_collection()
@@ -52,10 +63,12 @@ def register(user: UserCreate):
     if existing_user:
         raise HTTPException(status_code=400, detail="Username already registered")
         
+    role = "admin" if user.username in ["admin", "agnihotrianxh"] else "user"
     hashed_password = get_password_hash(user.password)
     users.insert_one({
         "username": user.username,
         "hashed_password": hashed_password,
+        "role": role,
         "created_at": datetime.utcnow()
     })
     return {"message": "User registered successfully"}
@@ -71,8 +84,10 @@ def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
             headers={"WWW-Authenticate": "Bearer"},
         )
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    user_role = user.get("role", "admin" if user.get("username") in ["admin", "agnihotrianxh"] else "user")
     access_token = create_access_token(
-        data={"sub": user["username"]}, expires_delta=access_token_expires
+        data={"sub": user["username"], "role": user_role},
+        expires_delta=access_token_expires
     )
     return {"access_token": access_token, "token_type": "bearer"}
 
@@ -80,7 +95,9 @@ def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
 def read_current_user(current_user: dict = Depends(get_current_user)):
     created_at = current_user.get("created_at")
     created_str = created_at.isoformat() if isinstance(created_at, datetime) else str(created_at or "")
+    user_role = current_user.get("role", "admin" if current_user.get("username") in ["admin", "agnihotrianxh"] else "user")
     return {
         "username": current_user["username"],
+        "role": user_role,
         "created_at": created_str
     }

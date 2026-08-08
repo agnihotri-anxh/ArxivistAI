@@ -41,6 +41,51 @@ def get_website_papers(
         "total_pages": total_pages
     }
 
+def get_search_suggestions(query_str: str, limit: int = 5) -> List[Dict[str, Any]]:
+    """Returns top matching paper suggestions for live search autocomplete dropdown."""
+    if not query_str or not query_str.strip():
+        return []
+        
+    papers_coll = get_papers_collection()
+    clean_q = query_str.strip()
+    
+    suggestions = []
+    # 1. Try MongoDB Text Index Search first
+    try:
+        text_query = {"$text": {"$search": clean_q}}
+        cursor = papers_coll.find(
+            text_query,
+            {"_id": 0}
+        ).limit(limit)
+        
+        suggestions = list(cursor)
+    except Exception as e:
+        print(f"[Search Suggestions] Text index fallback note: {e}")
+        
+    # 2. Fallback to Regex search if text index yields no results
+    if not suggestions:
+        regex_pattern = f".*{clean_q}.*"
+        regex_query = {
+            "$or": [
+                {"title": {"$regex": regex_pattern, "$options": "i"}},
+                {"authors": {"$regex": regex_pattern, "$options": "i"}},
+                {"full_abstract": {"$regex": regex_pattern, "$options": "i"}}
+            ]
+        }
+        cursor = papers_coll.find(regex_query, {"_id": 0}).limit(limit)
+        suggestions = list(cursor)
+
+    clean_suggestions = []
+    for doc in suggestions:
+        created = doc.get("created_at")
+        if isinstance(created, datetime):
+            doc["created_at"] = created.isoformat()
+        else:
+            doc["created_at"] = str(created or "")
+        clean_suggestions.append(doc)
+
+    return clean_suggestions
+
 def get_paper_by_id(paper_id: str) -> Optional[Dict]:
     """Fetches a single paper by its arXiv paper_id."""
     papers_coll = get_papers_collection()
