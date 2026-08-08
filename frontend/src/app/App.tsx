@@ -96,13 +96,42 @@ function TopNav({
   handleLogout: () => void;
   onPaperSelect: (paper: any) => void;
 }) {
-  const [showResearchMenu, setShowResearchMenu] = useState(false);
-  const [showUserMenu, setShowUserMenu] = useState(false);
-  const [showNotifMenu, setShowNotifMenu] = useState(false);
-  const [notifications, setNotifications] = useState<any[]>([]);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [suggestions, setSuggestions] = useState<any[]>([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
+  const toggleResearchMenu = (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setShowResearchMenu((prev) => !prev);
+    setShowUserMenu(false);
+    setShowNotifMenu(false);
+    setShowSuggestions(false);
+  };
+
+  const toggleNotifMenu = (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setShowNotifMenu((prev) => !prev);
+    setShowResearchMenu(false);
+    setShowUserMenu(false);
+    setShowSuggestions(false);
+  };
+
+  const toggleUserMenu = (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setShowUserMenu((prev) => !prev);
+    setShowResearchMenu(false);
+    setShowNotifMenu(false);
+    setShowSuggestions(false);
+  };
+
+  const closeAllMenus = () => {
+    setShowResearchMenu(false);
+    setShowUserMenu(false);
+    setShowNotifMenu(false);
+    setShowSuggestions(false);
+  };
+
+  useEffect(() => {
+    const handleOutsideClick = () => closeAllMenus();
+    document.addEventListener('click', handleOutsideClick);
+    return () => document.removeEventListener('click', handleOutsideClick);
+  }, []);
 
   useEffect(() => {
     if (searchQuery.trim().length >= 2) {
@@ -172,17 +201,24 @@ function TopNav({
               <Logo />
             </button>
             {currentPage !== "browse" && (
-              <div className="relative hidden md:block w-80">
+              <div className="relative hidden md:block w-80" onClick={(e) => e.stopPropagation()}>
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <input
                   type="text"
                   placeholder="Search 17,000+ research papers..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  onFocus={() => { if (searchQuery.trim().length >= 2) setShowSuggestions(true); }}
+                  onFocus={() => { 
+                    if (searchQuery.trim().length >= 2) {
+                      setShowResearchMenu(false);
+                      setShowUserMenu(false);
+                      setShowNotifMenu(false);
+                      setShowSuggestions(true);
+                    } 
+                  }}
                   onKeyDown={(e) => { 
                     if (e.key === 'Enter') { 
-                      setShowSuggestions(false); 
+                      closeAllMenus();
                       setPage("browse"); 
                     } 
                   }}
@@ -201,7 +237,7 @@ function TopNav({
                         <div
                           key={idx}
                           onClick={() => {
-                            setShowSuggestions(false);
+                            closeAllMenus();
                             onPaperSelect(p);
                           }}
                           className="p-2 rounded-xl hover:bg-emerald-50/70 border border-transparent hover:border-emerald-200 transition-all cursor-pointer space-y-1 group"
@@ -222,7 +258,7 @@ function TopNav({
 
                     <button
                       onClick={() => {
-                        setShowSuggestions(false);
+                        closeAllMenus();
                         setPage("browse");
                       }}
                       className="w-full text-center py-1.5 text-xs font-bold text-primary hover:underline bg-slate-50 rounded-xl"
@@ -238,20 +274,20 @@ function TopNav({
           <div className="flex items-center gap-3">
             <nav className="hidden md:flex items-center gap-1">
               <button
-                onClick={() => setPage("landing")}
+                onClick={() => { closeAllMenus(); setPage("landing"); }}
                 className={`px-3 py-1.5 text-sm rounded-md transition-colors ${currentPage === "landing" ? "text-primary font-medium" : "text-muted-foreground hover:text-foreground"}`}
               >
                 Home
               </button>
               <button
-                onClick={() => setPage("browse")}
+                onClick={() => { closeAllMenus(); setPage("browse"); }}
                 className={`px-3 py-1.5 text-sm rounded-md transition-colors ${currentPage === "browse" ? "text-primary font-medium" : "text-muted-foreground hover:text-foreground"}`}
               >
                 Browse
               </button>
               {userRole === "admin" && (
                 <button
-                  onClick={() => setPage("admin")}
+                  onClick={() => { closeAllMenus(); setPage("admin"); }}
                   className={`px-3 py-1.5 text-sm rounded-md transition-colors ${currentPage === "admin" ? "text-primary font-medium" : "text-muted-foreground hover:text-foreground"}`}
                 >
                   Admin
@@ -260,20 +296,20 @@ function TopNav({
 
               <div className="relative">
                 <button
-                  onClick={() => setShowResearchMenu(!showResearchMenu)}
+                  onClick={toggleResearchMenu}
                   className="flex items-center gap-1 px-3 py-1.5 text-sm rounded-md bg-primary text-white hover:bg-primary/90 transition-colors"
                 >
                   Research
                   <ChevronDown className="w-3.5 h-3.5" />
                 </button>
                 {showResearchMenu && (
-                  <div className="absolute top-full left-0 mt-1.5 w-44 bg-white rounded-lg shadow-lg border border-border py-1 z-50">
+                  <div className="absolute top-full left-0 mt-1.5 w-44 bg-white rounded-lg shadow-lg border border-border py-1 z-50" onClick={(e) => e.stopPropagation()}>
                     {["Trending", "New Releases", "Top Cited"].map((item) => (
                       <button
                         key={item}
                         className="w-full text-left px-3 py-2 text-sm hover:bg-muted text-foreground transition-colors"
                         onClick={() => {
-                          setShowResearchMenu(false);
+                          closeAllMenus();
                           setPage("browse");
                         }}
                       >
@@ -286,7 +322,7 @@ function TopNav({
             </nav>
 
             <button
-              onClick={() => { if (!isLoggedIn) openAuth('login'); else setPage("chat"); }}
+              onClick={() => { closeAllMenus(); if (!isLoggedIn) openAuth('login'); else setPage("chat"); }}
               className={`hidden sm:flex items-center gap-2 px-3.5 py-1.5 text-sm rounded-lg font-medium transition-all ${
                 currentPage === "chat"
                   ? "bg-primary text-white shadow-md shadow-primary/30"
@@ -299,7 +335,7 @@ function TopNav({
 
             <div className="relative">
               <button
-                onClick={() => setShowNotifMenu(!showNotifMenu)}
+                onClick={toggleNotifMenu}
                 className="relative p-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
                 title="Notifications"
               >
@@ -312,7 +348,7 @@ function TopNav({
               </button>
 
               {showNotifMenu && (
-                <div className="absolute right-0 top-full mt-2 w-80 bg-white rounded-2xl shadow-2xl border border-border p-4 z-50 space-y-3">
+                <div className="absolute right-0 top-full mt-2 w-80 bg-white rounded-2xl shadow-2xl border border-border p-4 z-50 space-y-3" onClick={(e) => e.stopPropagation()}>
                   <div className="flex items-center justify-between pb-2 border-b border-border">
                     <h4 className="font-bold text-xs text-foreground uppercase tracking-wider">Notifications</h4>
                     <span className="text-[10px] font-semibold px-2 py-0.5 bg-primary/10 text-primary rounded-full">
@@ -327,7 +363,7 @@ function TopNav({
                           key={n.notification_id}
                           onClick={() => {
                             if (!n.is_read) markRead(n.notification_id);
-                            setShowNotifMenu(false);
+                            closeAllMenus();
                             setPage("browse");
                           }}
                           className={`p-3 rounded-xl border text-xs space-y-1 cursor-pointer transition-all ${
@@ -354,13 +390,13 @@ function TopNav({
 
             <div className="relative">
               <button
-                onClick={() => setShowUserMenu(!showUserMenu)}
+                onClick={toggleUserMenu}
                 className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 border-2 border-primary/30 hover:border-primary transition-colors"
               >
                 <User className="w-4 h-4 text-primary" />
               </button>
               {showUserMenu && (
-                <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-xl shadow-xl border border-border p-4 z-50">
+                <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-xl shadow-xl border border-border p-4 z-50" onClick={(e) => e.stopPropagation()}>
                   <p className="font-semibold text-sm text-foreground">{isLoggedIn ? 'Welcome Back!' : 'Welcome'}</p>
                   <p className="text-xs text-muted-foreground mt-0.5 mb-3">
                     {isLoggedIn ? 'You are logged in' : 'To access AI features and chat'}

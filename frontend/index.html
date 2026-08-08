@@ -1,22 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ArXivist AI — Academic Intelligence Repository</title>
+    <meta name="description" content="A bespoke academic intelligence repository and paper catalog powered by AI retrieval." />
+    
+    <!-- Google Fonts: Newsreader (Editorial Serif) & Plus Jakarta Sans (Clean Body) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300..700;1,6..72,300..700&family=Plus+Jakarta+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 
-  <!DOCTYPE html>
-  <html lang="en">
-    <head>
-      
-      <meta charset="UTF-8" />
-      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-      <title>Research Paper Browsing Interface</title>
-      <meta name="description" content="Effortlessly browse and read research papers with an intuitive interface, featuring a searchable data table and AI chat integration for enhanced exploration." />
-      <meta name="robots" content="noindex, nofollow" />
-      <style>html, body { height: 100%; margin: 0; } #root { height: 100%; }</style>
-      
-    </head>
+    <style>
+      html, body { 
+        height: 100%; 
+        margin: 0; 
+        background-color: #FBF9F5; 
+        color: #181816;
+        font-family: 'Plus Jakarta Sans', sans-serif;
+      } 
+      #root { height: 100%; }
 
-    <body>
-      
-      <div id="root"></div>
-      <script type="module" src="/src/main.tsx"></script>
-      
-    </body>
-  </html>
-  
+      .font-serif {
+        font-family: 'Newsreader', Georgia, serif;
+      }
+      .font-sans {
+        font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      }
+
+      /* Custom scrollbars for editorial look */
+      .custom-scrollbar::-webkit-scrollbar {
+        width: 5px;
+      }
+      .custom-scrollbar::-webkit-scrollbar-track {
+        background: #F4F1EA;
+      }
+      .custom-scrollbar::-webkit-scrollbar-thumb {
+        background: #D4C5B9;
+        border-radius: 4px;
+      }
+      .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+        background: #A39385;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
