@@ -103,17 +103,19 @@ function TopNav({
             <button onClick={() => setPage("landing")} className="flex items-center">
               <Logo />
             </button>
-            <div className="relative hidden md:block w-72">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <input
-                type="text"
-                placeholder="Search 17,000+ research papers..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') setPage("browse"); }}
-                className="w-full pl-9 pr-4 py-1.5 text-xs bg-muted rounded-full border border-transparent focus:border-primary focus:bg-white outline-none transition-all"
-              />
-            </div>
+            {currentPage !== "browse" && (
+              <div className="relative hidden md:block w-72">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <input
+                  type="text"
+                  placeholder="Search 17,000+ research papers..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') setPage("browse"); }}
+                  className="w-full pl-9 pr-4 py-1.5 text-xs bg-muted rounded-full border border-transparent focus:border-primary focus:bg-white outline-none transition-all"
+                />
+              </div>
+            )}
           </div>
 
           <div className="flex items-center gap-3">
@@ -374,15 +376,18 @@ function BrowsePage({
   onCategorySelect,
   year,
   onYearSelect,
+  searchQuery,
+  onSearchChange,
   onPaperSelect
 }: {
   category: string;
   onCategorySelect: (cat: string) => void;
   year: string;
   onYearSelect: (y: string) => void;
+  searchQuery: string;
+  onSearchChange: (q: string) => void;
   onPaperSelect: (paper: any) => void;
 }) {
-  const [searchQuery, setSearchQuery] = useState("");
   const [page, setPageNum] = useState(1);
   const [papersData, setPapersData] = useState<{ papers: any[]; total: number; page: number; total_pages: number }>({
     papers: [],
@@ -438,7 +443,7 @@ function BrowsePage({
             onClick={() => {
               onCategorySelect("All");
               onYearSelect("All");
-              setSearchQuery("");
+              onSearchChange("");
               setPageNum(1);
             }}
             className="text-[11px] text-primary hover:underline font-semibold"
@@ -507,7 +512,7 @@ function BrowsePage({
                 placeholder="Search titles, authors, abstracts..."
                 value={searchQuery}
                 onChange={(e) => {
-                  setSearchQuery(e.target.value);
+                  onSearchChange(e.target.value);
                   setPageNum(1);
                 }}
                 className="w-full pl-10 pr-4 py-2 text-xs bg-slate-50 rounded-xl border border-slate-200 focus:border-primary focus:bg-white outline-none transition-all"
@@ -967,6 +972,8 @@ function AppContent() {
           onCategorySelect={(cat) => setActiveCategory(cat)}
           year={activeYear}
           onYearSelect={(y) => setActiveYear(y)}
+          searchQuery={navSearch}
+          onSearchChange={(q) => setNavSearch(q)}
           onPaperSelect={(paper) => setSelectedPaperModal(paper)}
         />
       )}
