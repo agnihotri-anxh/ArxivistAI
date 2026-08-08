@@ -1,4 +1,5 @@
 import json
+from typing import List, Dict, Any, Optional
 from openai import OpenAI
 from googlesearch import search as google_search_api
 from ..core.config import settings
@@ -44,12 +45,13 @@ def execute_web_search(query: str) -> str:
     except Exception as e:
         return f"Web search failed: {str(e)}"
 
-def run_agentic_rag(user_prompt: str, max_iterations: int = 3):
+def run_agentic_rag(user_prompt: str, history: Optional[List[Dict[str, str]]] = None, max_iterations: int = 3) -> str:
     """
-    Runs the Dual-RAG Agentic Workflow. 
+    Runs the Dual-RAG Agentic Workflow with conversational memory support. 
     1. ALWAYS forces Milvus Academic Database search first.
     2. Gives the LLM the Academic Context.
-    3. If the Academic Context is insufficient, the LLM autonomously calls 'search_online'.
+    3. Incorporates previous conversation turns from `history`.
+    4. If Academic Context is insufficient, the LLM autonomously calls 'search_online'.
     """
     
     # 1. Force Milvus Retrieval First
@@ -65,52 +67,74 @@ def run_agentic_rag(user_prompt: str, max_iterations: int = 3):
             academic_context += f"Source: {res['title']} by {res['authors']} ({res['published_year']})\n"
             academic_context += f"Text: {res['text']}\n\n"
             
-    # 2. Inject into the LLM Prompt
+    # 2. Inject into System Prompt
     full_system_prompt = system_prompt + academic_context
     
     messages = [
-        {"role": "system", "content": full_system_prompt},
-        {"role": "user", "content": user_prompt}
+        {"role": "system", "content": full_system_prompt}
     ]
+
+    # 3. Add previous conversation history turns (up to last 10 messages)
+    if history:
+        for msg in history[-10:]:
+            role = msg.get("role")
+            content = msg.get("content")
+            if role in ["user", "assistant"] and content:
+                if len(messages) > 1 and messages[-1].get("role") == role:
+                    continue
+                messages.append({"role": role, "content": content})
+
+    # Add current user prompt (only if not already the last message)
+    if len(messages) == 1 or messages[-1].get("role") != "user":
+        messages.append({"role": "user", "content": user_prompt})
     
     iterations = 0
     while iterations < max_iterations:
         iterations += 1
         
-        response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=messages,
-            tools=tools,
-            tool_choice="auto",
-            temperature=0.1
-        )
-        
-        response_message = response.choices[0].message
-        messages.append(response_message)
-        
-        # 3. Check if the LLM decided to use the fallback Web Search
-        if response_message.tool_calls:
-            for tool_call in response_message.tool_calls:
-                if tool_call.function.name == "search_online":
-                    args = json.loads(tool_call.function.arguments)
-                    search_query = args.get("query")
-                    
-                    # Execute the Web tool
-                    web_results_text = execute_web_search(search_query)
-                    
-                    # Pass the web results back to the LLM
-                    messages.append({
-                        "role": "tool",
-                        "tool_call_id": tool_call.id,
-                        "name": "search_online",
-                        "content": web_results_text
-                    })
+        try:
+            response = client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=messages,
+                tools=tools,
+                tool_choice="auto",
+                temperature=0.1
+            )
             
-            # After adding tool results, loop again to let the LLM generate the final answer
-            continue
+            response_message = response.choices[0].message
+            messages.append(response_message)
             
-        else:
-            # LLM didn't call a tool, so it gave a final text response
-            return response_message.content
+            # 4. Check if the LLM decided to use the fallback Web Search
+            if response_message.tool_calls:
+                for tool_call in response_message.tool_calls:
+                    if tool_call.function.name == "search_online":
+                        args = json.loads(tool_call.function.arguments)
+                        search_query = args.get("query")
+                        
+                        web_results_text = execute_web_search(search_query)
+                        
+                        messages.append({
+                            "role": "tool",
+                            "tool_call_id": tool_call.id,
+                            "name": "search_online",
+                            "content": web_results_text
+                        })
+                continue
+                
+            else:
+                return response_message.content or "No response generated."
+
+        except Exception as err:
+            print(f"[Agent] Tool invocation fallback note: {err}")
+            # Fallback: Generate response without tools if model tool generation format raises 400
+            try:
+                fallback_res = client.chat.completions.create(
+                    model="llama-3.3-70b-versatile",
+                    messages=messages,
+                    temperature=0.1
+                )
+                return fallback_res.choices[0].message.content or "No response generated."
+            except Exception as e2:
+                return f"Error executing AI generation: {str(e2)}"
             
     return "Agent reached maximum iterations without giving a final answer."

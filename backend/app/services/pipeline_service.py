@@ -22,10 +22,12 @@ class PipelineState:
     def __init__(self):
         self.lock = threading.Lock()
         self.is_running: bool = False
+        self.stop_requested: bool = False
         self.current_step: str = "Idle"
         self.last_run: str = "Never"
         self.logs: List[str] = ["Pipeline orchestrator service initialized."]
-        self.status: str = "idle" # "idle", "running", "completed", "error"
+        self.status: str = "idle" # "idle", "running", "completed", "cancelled", "error"
+        self.recent_processed_papers: List[Dict[str, Any]] = []
 
     def log(self, message: str):
         timestamp = datetime.now().strftime("%H:%M:%S")
@@ -36,9 +38,28 @@ class PipelineState:
             if len(self.logs) > 500:
                 self.logs = self.logs[-500:]
 
+    def record_processed_paper(self, paper_id: str, title: str, category: str, status: str):
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        entry = {
+            "paper_id": paper_id,
+            "title": title[:60] + ("..." if len(title) > 60 else "") if title else f"Document {paper_id}",
+            "category": category or "Research",
+            "status": status,
+            "timestamp": timestamp
+        }
+        with self.lock:
+            self.recent_processed_papers = [
+                p for p in self.recent_processed_papers 
+                if not (p["paper_id"] == paper_id and p["status"] == status)
+            ]
+            self.recent_processed_papers.insert(0, entry)
+            if len(self.recent_processed_papers) > 50:
+                self.recent_processed_papers = self.recent_processed_papers[:50]
+
     def set_running(self, step_name: str):
         with self.lock:
             self.is_running = True
+            self.stop_requested = False
             self.current_step = step_name
             self.status = "running"
         self.log(f"Started pipeline step: {step_name}")
@@ -46,12 +67,24 @@ class PipelineState:
     def set_finished(self, status: str = "completed"):
         with self.lock:
             self.is_running = False
+            self.stop_requested = False
             self.current_step = "Idle"
             self.status = status
             self.last_run = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         self.log(f"Pipeline execution finished with status: {status}")
 
+    def request_cancel(self) -> bool:
+        with self.lock:
+            if self.is_running:
+                self.stop_requested = True
+                self.log("Cancellation requested by administrator.")
+                return True
+        return False
+
 pipeline_state = PipelineState()
+
+def cancel_pipeline() -> bool:
+    return pipeline_state.request_cancel()
 
 def get_system_metrics() -> Dict[str, Any]:
     """Aggregates real-time system metrics across MongoDB and Milvus."""
@@ -73,6 +106,7 @@ def get_system_metrics() -> Dict[str, Any]:
 
     with pipeline_state.lock:
         logs_snapshot = list(pipeline_state.logs[-100:])
+        recent_papers = list(pipeline_state.recent_processed_papers[:30])
         is_running = pipeline_state.is_running
         current_step = pipeline_state.current_step
         last_run = pipeline_state.last_run
@@ -87,7 +121,8 @@ def get_system_metrics() -> Dict[str, Any]:
         "current_step": current_step,
         "last_run": last_run,
         "status": status,
-        "logs": logs_snapshot
+        "logs": logs_snapshot,
+        "recent_processed_papers": recent_papers
     }
 
 def _task_harvest(max_records: int = 50):

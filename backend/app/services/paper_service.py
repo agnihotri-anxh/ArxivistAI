@@ -1,10 +1,16 @@
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 from datetime import datetime
 from ..db.database import get_raw_arxiv_collection, get_papers_collection
 from .category_utils import format_category_name
 
-def get_website_papers(category: Optional[str] = None, year: Optional[str] = None, limit: int = 500) -> List[Dict]:
-    """Fetches papers from the MongoDB website catalog collection."""
+def get_website_papers(
+    category: Optional[str] = None,
+    year: Optional[str] = None,
+    search: Optional[str] = None,
+    page: int = 1,
+    limit: int = 24
+) -> Dict[str, Any]:
+    """Fetches paginated papers from the MongoDB website catalog collection."""
     papers_coll = get_papers_collection()
     query = {}
     
@@ -12,9 +18,28 @@ def get_website_papers(category: Optional[str] = None, year: Optional[str] = Non
         query["category"] = category
     if year and year != "All":
         query["year"] = str(year)
+    if search and search.strip():
+        regex_pattern = f".*{search.strip()}.*"
+        query["$or"] = [
+            {"title": {"$regex": regex_pattern, "$options": "i"}},
+            {"full_abstract": {"$regex": regex_pattern, "$options": "i"}},
+            {"authors": {"$regex": regex_pattern, "$options": "i"}}
+        ]
         
-    cursor = papers_coll.find(query, {"_id": 0}).limit(limit)
-    return list(cursor)
+    total = papers_coll.count_documents(query)
+    total_pages = max(1, (total + limit - 1) // limit) if limit > 0 else 1
+    skip = (max(1, page) - 1) * limit
+    
+    cursor = papers_coll.find(query, {"_id": 0}).skip(skip).limit(limit)
+    papers = list(cursor)
+    
+    return {
+        "papers": papers,
+        "total": total,
+        "page": page,
+        "limit": limit,
+        "total_pages": total_pages
+    }
 
 def get_paper_by_id(paper_id: str) -> Optional[Dict]:
     """Fetches a single paper by its arXiv paper_id."""
