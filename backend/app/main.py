@@ -1,3 +1,4 @@
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -22,6 +23,7 @@ app.include_router(routes.router, prefix="/api")
 
 # Serve PDFs
 pdfs_path = Path(__file__).resolve().parent.parent.parent / "data" / "pdfs"
+os.makedirs(pdfs_path, exist_ok=True)
 app.mount("/api/pdfs", StaticFiles(directory=str(pdfs_path)), name="pdfs")
 
 @app.get("/")

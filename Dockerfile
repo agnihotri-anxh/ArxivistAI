@@ -14,6 +14,7 @@ RUN pip install --no-cache-dir -r /app/backend/requirements.txt
 
 # Copy backend application source
 COPY backend/ /app/backend/
+RUN mkdir -p /app/data/pdfs
 COPY .env /app/.env
 
 EXPOSE 8000
