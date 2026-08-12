@@ -13,3 +13,4 @@ requests
 tqdm
 langchain-text-splitters
 pymilvus[model]
+marshmallow<3.20.0
