@@ -14,14 +14,14 @@ from .category_utils import format_category_name
 
 # Initialize connections lazily or globally
 client = None
-bge_m3_ef = None
+embedding_fn = None
 
 def init_milvus():
-    global client, bge_m3_ef
+    global client, embedding_fn
     if client is None:
         client = get_milvus_client()
-    if bge_m3_ef is None:
-        bge_m3_ef = get_embedding_function()
+    if embedding_fn is None:
+        embedding_fn = get_embedding_function()
 
 def get_all_papers(limit: int = 500) -> List[Dict]:
     """Fetches a list of unique papers from the database."""
@@ -58,7 +58,7 @@ def search_academic_database(query: str, limit: int = 5) -> List[Dict]:
     
     # Generate query embeddings
     print(f"Embedding query: '{query}'")
-    embeddings = bge_m3_ef.encode_queries([query])
+    embeddings = embedding_fn.encode_queries([query])
     
     dense_vec = embeddings["dense"][0]
     sparse_vec = embeddings["sparse"][0]

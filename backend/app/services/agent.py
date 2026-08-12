@@ -6,11 +6,22 @@ from ..core.config import settings
 from .milvus_search import search_academic_database
 from .prompt.system_prompt import system_prompt
 
-# Initialize OpenAI client pointing to Groq
-client = OpenAI(
-    base_url="https://api.groq.com/openai/v1",
-    api_key=settings.GROQ_API_KEY
-)
+import os
+
+nvidia_api_key = os.getenv("NVIDIA_API_KEY", "").strip()
+
+if nvidia_api_key:
+    client = OpenAI(
+        base_url="https://integrate.api.nvidia.com/v1",
+        api_key=nvidia_api_key
+    )
+    MODEL_NAME = "nvidia/nemotron-3-ultra-550b-a55b"
+else:
+    client = OpenAI(
+        base_url="https://api.groq.com/openai/v1",
+        api_key=settings.GROQ_API_KEY
+    )
+    MODEL_NAME = "llama-3.3-70b-versatile"
 
 # The fallback tool definition for Llama-3-70B
 tools = [
@@ -93,19 +104,24 @@ def run_agentic_rag(user_prompt: str, history: Optional[List[Dict[str, str]]] = 
         iterations += 1
         
         try:
-            response = client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=messages,
-                tools=tools,
-                tool_choice="auto",
-                temperature=0.1
-            )
+            kwargs = {
+                "model": MODEL_NAME,
+                "messages": messages,
+                "temperature": 0.1
+            }
+            if nvidia_api_key:
+                kwargs["extra_body"] = {"chat_template_kwargs": {"enable_thinking": True}, "reasoning_budget": 4096}
+            else:
+                kwargs["tools"] = tools
+                kwargs["tool_choice"] = "auto"
+
+            response = client.chat.completions.create(**kwargs)
             
             response_message = response.choices[0].message
             messages.append(response_message)
             
             # 4. Check if the LLM decided to use the fallback Web Search
-            if response_message.tool_calls:
+            if getattr(response_message, "tool_calls", None):
                 for tool_call in response_message.tool_calls:
                     if tool_call.function.name == "search_online":
                         args = json.loads(tool_call.function.arguments)
@@ -125,16 +141,16 @@ def run_agentic_rag(user_prompt: str, history: Optional[List[Dict[str, str]]] = 
                 return response_message.content or "No response generated."
 
         except Exception as err:
-            print(f"[Agent] Tool invocation fallback note: {err}")
-            # Fallback: Generate response without tools if model tool generation format raises 400
+            print(f"[Agent] Execution fallback note: {err}")
             try:
                 fallback_res = client.chat.completions.create(
-                    model="llama-3.3-70b-versatile",
+                    model=MODEL_NAME,
                     messages=messages,
                     temperature=0.1
                 )
                 return fallback_res.choices[0].message.content or "No response generated."
             except Exception as e2:
                 return f"Error executing AI generation: {str(e2)}"
+
             
     return "Agent reached maximum iterations without giving a final answer."

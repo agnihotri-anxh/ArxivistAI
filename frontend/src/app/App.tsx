@@ -23,7 +23,7 @@ import {
   ChevronLeft,
   ChevronRight
 } from "lucide-react";
-import researchLogoSvg from "@/imports/logo.svg";
+import researchLogoSvg from "@/imports/Arxivit.svg";
 import { ImageWithFallback } from "@/app/components/figma/ImageWithFallback";
 import { AuthPage } from "@/app/components/AuthPage";
 import { AdminPanel } from "@/app/components/AdminPanel";
@@ -96,6 +96,14 @@ function TopNav({
   handleLogout: () => void;
   onPaperSelect: (paper: any) => void;
 }) {
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showResearchMenu, setShowResearchMenu] = useState(false);
+  const [showNotifMenu, setShowNotifMenu] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+
   const toggleResearchMenu = (e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     setShowResearchMenu((prev) => !prev);
